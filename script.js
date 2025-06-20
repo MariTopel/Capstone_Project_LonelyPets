@@ -23,7 +23,7 @@ function petForm(onSave) {
     <select id="pet-type" name="petType" required>
       <option value="" disabled selected>Select your pet</option>
       <option value="dragon">Dragon</option>
-      <option value="cat">Cat</option>
+      <option value="cat">Catz</option>
       <option value="dog">Dog</option>
       <option value="plant">Plant</option>
       <option value="space octopus">Space Octopus</option>
