@@ -1,3 +1,6 @@
+//test
+console.log("loadGenerator is", typeof window.loadGenerator);
+
 //object that holds the pet type and name.
 const state = {
   pet: null, //will hold { type, name } once a pet is created
@@ -11,12 +14,62 @@ const petImages = {
   plant: "images/plant.png",
   "space octopus": "images/octopus.png",
 };
+// top of your script.js, before generatePetReply
+const PET_SYSTEM_PROMPT =
+  "You are a friendly little virtual pet and you are speaking to a human. " +
+  "You reply in short, cheerful sentences, and always stay on topic.";
+
+//This is a module-level promise(it will eventually hold the result of window.loadGenerator() which is an async operation for loading the pet's "brain").
+// This means that it is defined across the entire module/javascript file. It is like a global variable. It's not inside a function so everything can use it.
+//by having it be a module-level promise, this insures the model is only loaded once.
+// All future calls in the generatePetReply(userText) -> if(!generatorPromise) will reuse the same model instead of reloading/remaking it.
+let generatorPromise = null;
+
+//creates the pet's reply to the user's text in the text feilt.
+async function generatePetReply(userText) {
+  if (!generatorPromise) {
+    //loads the TF-WASM runtime and distilgpt2 which is 10mb and is designed to be faster and lighter.
+    // Which lets the browser run machine learning models directly without needing a server or GPU.
+    //once loaded it will power pet's responses locally on browser using Javascript function.
+    //TLDR; makes sure the pet's "brain" is loaded into memory before it allows the pet to speak.
+    generatorPromise = window.loadGenerator(); //this is defined in the HTML and not here in the script.js.
+  }
+  // By caching the promise, subsequent chats skip the download & initialization step. aka await that same promise every time—so we load the model only once.
+  const generator = await generatorPromise;
+
+  // Build the full prompt. this is sourced from the above PET_SYSTEM_PROMPT
+  const prompt = PET_SYSTEM_PROMPT + "\n" + `Human: ${userText}\n` + "Pet:";
+  // this translates to:
+  // You are a friendly little virtual pet. ...
+  //Human: Hello pet!
+  //Pet:
+  // this tells the model who it is(pet) and what to generate next.
+
+  // Generate with sampling and repetition penalty
+  const outputs = await generator(prompt, {
+    max_length: 180, // total tolkens used (prompt+reply). AKA caps how long the output can run (inculding the prompt). Research what tolkens actually means.
+    temperature: 0.3, // controls randomness (0.0–1.0) 0.3 is very focused and higher values will make it more random.
+    top_p: 0.9, // nucleus sampling EXPLANATION: looks at probabilites of next few words. .9 means 90% chance of possible words. this is different from other type that only predicts next single word. It is like the reccomended word in your phone's keyboard.
+    repetition_penalty: 1.2, //prevents/pushes the model away from looping. EX: saying the same words over and over like "hello hello hello hello hello"
+  });
+
+  let text = outputs[0].generated_text;
+
+  // Strip off the prompt so you only get the pet’s reply. The raw generated text will usually included reprinting the entire prompt, including what the user typed (because that counts as a prompt). This needs to be cut so the user wont see it.
+  text = text.replace(prompt, "").trim();
+
+  // Sometimes GPT-2 runs on—cut at first newline. I think what this means is it stops the model from going and going. The issues is that it will output cut off sentences or ideas.
+  const end = text.indexOf("\n");
+  if (end > 0) text = text.slice(0, end).trim();
+
+  return text;
+}
 
 //ai chatbot fake test thingy
-function generatePetReply(userText) {
-  // naive echo–in a real app you'd call your AI here
-  return `You said "${userText}", that sounds interesting!`;
-}
+//function generatePetReply(userText) {
+// naive echo–in a real app you'd call your AI here
+//return `You said "${userText}", that sounds interesting!`;
+//}
 
 //function that creates the pet form
 function petForm(onSave) {
@@ -120,21 +173,23 @@ function ChatView() {
   inputWrapper.appendChild(sendBtn);
 
   sendBtn.addEventListener("click", () => {
-    //added event listener on button
-    const text = input.value.trim(); //.trim gets rid of white space on ends of user input
+    //when the user presses send, it calls generatePetReply(userText) to get pet's response and then display it
+    const text = input.value.trim();
     if (!text) return;
-    // 1) Append the user’s message
-    const userMsg = document.createElement("p"); //creates a <p>
-    userMsg.innerHTML = `<strong>You:</strong> ${text}`; // saying "You: user typed in text"
-    messages.appendChild(userMsg); //adds the user written entered stuff to the messages container
-    input.value = ""; // resets the box that is typed in to be empty
 
-    // 2) Simulate an AI reply after a short pause for testing
-    setTimeout(() => {
+    // 1) Append the user’s message
+    const userMsg = document.createElement("p");
+    userMsg.innerHTML = `<strong>You:</strong> ${text}`;
+    messages.appendChild(userMsg);
+    input.value = "";
+
+    // 2) After a short pause, await the async reply
+    setTimeout(async () => {
+      //needs to be async because it needs to wait for generatePetReply(text) to load. this gives the actual string instead of going past it with no promise.
+      const replyText = await generatePetReply(text);
       const aiMsg = document.createElement("p");
-      aiMsg.innerHTML = `<strong>Pet:</strong> ${generatePetReply(text)}`;
+      aiMsg.innerHTML = `<strong>Pet:</strong> ${replyText}`;
       messages.appendChild(aiMsg);
-      // scroll to bottom
       messages.scrollTop = messages.scrollHeight;
     }, 500);
   });

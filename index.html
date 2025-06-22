@@ -4,14 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Pet App</title>
-    <!-- (Optional) link your CSS here -->
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <!-- This is your root container -->
     <div id="app"></div>
 
-    <!-- Load your script last -->
-    <script src="script.js"></script>
+    <!-- 1) Inline module to pull in transformers.js and expose loadGenerator() -->
+    <script type="module">
+      import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers/dist/transformers.min.js";
+
+      // This runs immediately, before script.js loads:
+      window.loadGenerator = async () => {
+        console.log("Loading tiny model…");
+        return await pipeline("text-generation", "Xenova/distilgpt2");
+      };
+
+      console.log("loadGenerator is ready");
+    </script>
+
+    <!-- 2) Your app code must come *after* that loader -->
+    <script src="script.js" type="module"></script>
   </body>
 </html>
